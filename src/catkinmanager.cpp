@@ -17,6 +17,8 @@
 #include <interfaces/icore.h>
 #include <interfaces/iplugincontroller.h>
 
+#include <serialization/indexedstring.h>
+
 #include <project/projectmodel.h>
 
 #include <util/executecompositejob.h>
@@ -26,6 +28,37 @@
 using namespace KDevelop;
 
 K_PLUGIN_FACTORY_WITH_JSON(CatkinManagerFactory, "kdevcatkin.json", registerPlugin<CatkinManager>(); )
+
+namespace
+{
+
+class SubProjectFile : public KDevelop::ProjectFileItem
+{
+public:
+	SubProjectFile(IProject* project, const Path& path, KDevelop::ProjectFileItem* subProject, ProjectBaseItem* parent = nullptr)
+	 : ProjectFileItem(project, path, parent)
+	 , m_subProject(subProject)
+	{}
+
+	KDevelop::ProjectFileItem* subProjectItem()
+	{ return m_subProject; }
+private:
+	KDevelop::ProjectFileItem* m_subProject;
+};
+
+class SubProjectRoot : public KDevelop::ProjectFolderItem
+{
+public:
+	SubProjectRoot(IProject* project, const Path& path, ProjectBaseItem* parent = nullptr)
+	 : ProjectFolderItem(project, path, parent)
+	{}
+
+	QString iconName() const override
+	{ return "package-x-generic"; }
+};
+
+}
+
 
 CatkinManager::CatkinManager(QObject* parent, const QVariantList&)
  : KDevelop::AbstractFileManagerPlugin(QStringLiteral("kdevcatkin"), parent)
@@ -39,14 +72,6 @@ CatkinManager::~CatkinManager()
 
 KDevelop::ProjectFolderItem *CatkinManager::import(KDevelop::IProject *project)
 {
-	if(!m_cmakeManager)
-	{
-		IPlugin* plugin = core()->pluginController()->pluginForExtension(QStringLiteral("org.kdevelop.IProjectManager"), QStringLiteral("KDevCMakeManager"));
-		Q_ASSERT(plugin);
-		m_cmakeManager = plugin->extension<KDevelop::IProjectFileManager>();
-		Q_ASSERT(m_cmakeManager);
-	}
-
 	return AbstractFileManagerPlugin::import(project);
 }
 
@@ -113,9 +138,27 @@ public:
 		if(QFile::exists(projectFilePath.toLocalFile()))
 		{
 			qDebug() << "Already have project file:" << projectFilePath;
-		}
 
-		qDebug() << "Build dir:" << projectBuildPath;
+			auto project = new CatkinSubProject(manager);
+
+			if(!project->open(projectFilePath, projectBuildPath, manager->cmakePlugin()))
+			{
+				qWarning("Could not open project");
+				return;
+			}
+
+			qDebug() << "Project configuration:" << project->projectConfiguration()->groupList();
+
+			manager->addSubproject(project);
+
+			auto job = manager->cmakeManager()->createImportJob(project->projectItem());
+
+			connect(job, &KJob::result, this, [project](){
+				qDebug() << "=========================== Subproject import for" << project->name() << "finished ========================";
+			});
+
+			addSubjob(job);
+		}
 	}
 
 	void start() override
@@ -156,6 +199,8 @@ public:
 					fringe.push(Path(path, info.fileName()));
 			}
 		}
+
+		ExecuteCompositeJob::start();
 	}
 
 private:
@@ -165,12 +210,20 @@ private:
 
 KJob* CatkinManager::createImportJob(KDevelop::ProjectFolderItem* item)
 {
+	if(!m_cmakeManager)
+	{
+		m_cmakePlugin = core()->pluginController()->pluginForExtension(QStringLiteral("org.kdevelop.IProjectFileManager"), QStringLiteral("KDevCMakeManager"));
+		Q_ASSERT(m_cmakePlugin);
+		m_cmakeManager = m_cmakePlugin->extension<KDevelop::IProjectFileManager>();
+		Q_ASSERT(m_cmakeManager);
+	}
+
 	auto project = item->project();
 
 	auto job = new ListPackagesJob(project, this);
 	connect(job, &KJob::result, this, [this, job, project](){
 		if (job->error() != 0) {
-
+			qWarning() << "Got error from ListPackagesJob";
 		}
 	});
 
@@ -183,7 +236,7 @@ KJob* CatkinManager::createImportJob(KDevelop::ProjectFolderItem* item)
 	ExecuteCompositeJob* composite = new ExecuteCompositeJob(this, jobs);
 	//     even if the cmake call failed, we want to load the project so that the project can be worked on
 	composite->setAbortOnError(false);
-return composite;
+	return composite;
 }
 
 
@@ -191,9 +244,10 @@ bool CatkinManager::isValid(const Path& path, const bool isFolder, KDevelop::IPr
 {
 	Path srcPath(project->path(), "src");
 
-	qDebug() << "srcPath: " << srcPath << ", path:" << path;
-
 	if(srcPath != path && !srcPath.isParentOf(path))
+		return false;
+
+	if(path.lastPathSegment().endsWith(".kdev4"))
 		return false;
 
 	return AbstractFileManagerPlugin::isValid(path, isFolder, project);
@@ -231,7 +285,19 @@ bool CatkinManager::removeTarget(KDevelop::ProjectTargetItem* target)
 
 bool CatkinManager::hasBuildInfo(KDevelop::ProjectBaseItem* item) const
 {
-	qDebug() << "hasBuildInfo";
+	auto fileItem = dynamic_cast<SubProjectFile*>(item);
+
+	if(fileItem)
+	{
+		auto buildManager = fileItem->subProjectItem()->project()->buildSystemManager();
+		if(!buildManager)
+			return false;
+
+		bool available = buildManager->hasBuildInfo(fileItem->subProjectItem());
+
+		return available;
+	}
+
 	return false;
 }
 
@@ -242,17 +308,106 @@ KDevelop::Path CatkinManager::buildDirectory(KDevelop::ProjectBaseItem*) const
 
 KDevelop::Path::List CatkinManager::frameworkDirectories(KDevelop::ProjectBaseItem* item) const
 {
+	auto fileItem = dynamic_cast<SubProjectFile*>(item);
+
+	if(fileItem)
+	{
+		auto buildManager = fileItem->subProjectItem()->project()->buildSystemManager();
+		if(!buildManager)
+			return {};
+
+		auto directories = buildManager->frameworkDirectories(fileItem->subProjectItem());
+
+		return directories;
+	}
+
 	return {};
 }
 
 KDevelop::Path::List CatkinManager::includeDirectories(KDevelop::ProjectBaseItem* item) const
 {
+	auto fileItem = dynamic_cast<SubProjectFile*>(item);
+
+	if(fileItem)
+	{
+		auto buildManager = fileItem->subProjectItem()->project()->buildSystemManager();
+		if(!buildManager)
+			return {};
+
+		auto directories = buildManager->includeDirectories(fileItem->subProjectItem());
+
+		return directories;
+	}
+
 	return {};
 }
 
 QHash<QString, QString> CatkinManager::defines(KDevelop::ProjectBaseItem* item) const
 {
+	auto fileItem = dynamic_cast<SubProjectFile*>(item);
+
+	if(fileItem)
+	{
+		auto buildManager = fileItem->subProjectItem()->project()->buildSystemManager();
+		if(!buildManager)
+			return {};
+
+		return buildManager->defines(fileItem->subProjectItem());
+	}
+
 	return {};
+}
+
+void CatkinManager::addSubproject(CatkinSubProject* project)
+{
+	m_subProjects << project;
+	m_subProjectModel.appendRow(project->projectItem());
+}
+
+KDevelop::ProjectFileItem* CatkinManager::createFileItem(KDevelop::IProject* project, const KDevelop::Path& path, KDevelop::ProjectBaseItem* parent)
+{
+	KDevelop::IndexedString indexedPath(path.toLocalFile());
+
+	auto it = std::find_if(m_subProjects.begin(), m_subProjects.end(), [&](CatkinSubProject* subProj){
+		return subProj->inProject(indexedPath);
+	});
+
+	if(it != m_subProjects.end())
+	{
+// 		qDebug() << "Found match for file" << path << "in project" << (*it)->name();
+		auto items = (*it)->itemsForPath(indexedPath);
+
+		if(items.isEmpty())
+		{
+			qWarning() << "Got empty response from itemsForPath on" << indexedPath;
+			return AbstractFileManagerPlugin::createFileItem(project, path, parent);
+		}
+
+		auto item = dynamic_cast<KDevelop::ProjectFileItem*>(items[0]);
+		if(!item)
+		{
+			qWarning() << "Got invalid object type from itemsForPath";
+			return AbstractFileManagerPlugin::createFileItem(project, path, parent);
+		}
+
+		qDebug() << path << item->project() << project;
+
+		return new SubProjectFile(project, path, item, parent);
+	}
+
+	return AbstractFileManagerPlugin::createFileItem(project, path, parent);
+}
+
+KDevelop::ProjectFolderItem* CatkinManager::createFolderItem(KDevelop::IProject* project, const KDevelop::Path& path, KDevelop::ProjectBaseItem* parent)
+{
+	auto it = std::find_if(m_subProjects.begin(), m_subProjects.end(), [&](CatkinSubProject* subProj){
+		return subProj->path() == path;
+	});
+
+	if(it != m_subProjects.end())
+		return new SubProjectRoot(project, path, parent);
+
+	return AbstractFileManagerPlugin::createFolderItem(project, path, parent);
 }
 
 #include "catkinmanager.moc"

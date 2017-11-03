@@ -42,6 +42,7 @@ include_directories(
 
 set(kdevcatkin_PART_SRCS
     src/catkinmanager.cpp
+    src/catkinsubproject.cpp
 
 #     ${kdevclangtidy_LOG_SRCS}
 )

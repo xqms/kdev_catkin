@@ -21,7 +21,7 @@
     },
     "X-KDevelop-Category": "Project",
     "X-KDevelop-IRequired": [
-        "org.kdevelop.IProjectBuilder@KDevCMakeBuilder"
+        "org.kdevelop.IProjectFileManager@KDevCMakeManager"
     ],
     "X-KDevelop-Interfaces": [
         "org.kdevelop.IProjectFileManager"
