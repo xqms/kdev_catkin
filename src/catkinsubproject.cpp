@@ -109,6 +109,21 @@ bool CatkinSubProject::open(
 	m_cfg->addConfigSources(QStringList() << m_projectTempFile.fileName());
 	KConfigGroup projectGroup( m_cfg, "Project" );
 
+	// Initialize CMake to the build directory
+	{
+		KConfigGroup cmakeGroup(m_cfg, "CMake");
+
+		cmakeGroup.writeEntry("Build Directory Count", "1");
+		cmakeGroup.writeEntry("Current Build Directory Index", "0");
+
+		KConfigGroup dirGroup(&cmakeGroup, "CMake Build Directory 0");
+
+		dirGroup.writeEntry("Build Directory Path", buildPath.toLocalFile());
+		dirGroup.writeEntry("Build Type", "");
+
+		m_cfg->sync();
+	}
+
 	m_name = projectGroup.readEntry("Name", m_projectFilePath.lastPathSegment());
 
 	m_manager = manager;

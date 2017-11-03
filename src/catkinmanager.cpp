@@ -12,6 +12,8 @@
 #include <KPluginFactory>
 #include <KDirWatch>
 #include <KJob>
+#include <KConfig>
+#include <KConfigGroup>
 
 #include <interfaces/iproject.h>
 #include <interfaces/icore.h>
@@ -135,30 +137,42 @@ public:
 		// Do we already have a project file in place?
 		KDevelop::Path projectSourcePath(packageXmlPath.parent());
 		KDevelop::Path projectFilePath(projectSourcePath, QString("%1.kdev4").arg(name));
-		if(QFile::exists(projectFilePath.toLocalFile()))
+
+		if(!QFile::exists(projectFilePath.toLocalFile()))
 		{
-			qDebug() << "Already have project file:" << projectFilePath;
-
-			auto project = new CatkinSubProject(manager);
-
-			if(!project->open(projectFilePath, projectBuildPath, manager->cmakePlugin()))
+			KSharedConfigPtr cfg = KSharedConfig::openConfig(projectFilePath.toLocalFile(), KConfig::SimpleConfig);
+			if(!cfg->isConfigWritable(true))
 			{
-				qWarning("Could not open project");
+				qWarning() << "Can't write to config file";
 				return;
 			}
 
-			qDebug() << "Project configuration:" << project->projectConfiguration()->groupList();
-
-			manager->addSubproject(project);
-
-			auto job = manager->cmakeManager()->createImportJob(project->projectItem());
-
-			connect(job, &KJob::result, this, [project](){
-				qDebug() << "=========================== Subproject import for" << project->name() << "finished ========================";
-			});
-
-			addSubjob(job);
+			KConfigGroup grp = cfg->group("Project");
+			grp.writeEntry("Name", name);
+			grp.writeEntry("CreatedFrom", "CMakeLists.txt");
+			grp.writeEntry("Manager", "KDevCMakeManager");
+			cfg->sync();
 		}
+
+		auto project = new CatkinSubProject(manager);
+
+		if(!project->open(projectFilePath, projectBuildPath, manager->cmakePlugin()))
+		{
+			qWarning("Could not open project");
+			return;
+		}
+
+		qDebug() << "Project configuration:" << project->projectConfiguration()->groupList();
+
+		manager->addSubproject(project);
+
+		auto job = manager->cmakeManager()->createImportJob(project->projectItem());
+
+		connect(job, &KJob::result, this, [project](){
+			qDebug() << "=========================== Subproject import for" << project->name() << "finished ========================";
+		});
+
+		addSubjob(job);
 	}
 
 	void start() override
