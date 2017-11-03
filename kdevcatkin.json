@@ -1,0 +1,30 @@
+{
+    "KPlugin": {
+        "Authors": [
+            {
+                "Email": "max.schwarz@online.de",
+                "Name": "Max Schwarz",
+                "Name[x-test]": "xxMax Schwarzxx"
+            }
+        ],
+        "Category": "Project Management",
+        "Description": "Allows KDevelop to manage catkin-based projects",
+        "Description[x-test]": "xxAllows KDevelop to manage catkin-based projectsxx",
+        "Icon": "kdevelop",
+        "Id": "KDevCatkinManager",
+        "License": "GPL",
+        "Name": "Catkin Project Manager",
+        "Name[x-test]": "xxCatkin Project Managerxx",
+        "ServiceTypes": [
+            "KDevelop/Plugin"
+        ]
+    },
+    "X-KDevelop-Category": "Project",
+    "X-KDevelop-IRequired": [
+        "org.kdevelop.IProjectBuilder@KDevCMakeBuilder"
+    ],
+    "X-KDevelop-Interfaces": [
+        "org.kdevelop.IProjectFileManager"
+    ],
+    "X-KDevelop-Mode": "GUI"
+}
