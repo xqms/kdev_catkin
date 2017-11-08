@@ -120,6 +120,7 @@ bool CatkinSubProject::open(
 
 		dirGroup.writeEntry("Build Directory Path", buildPath.toLocalFile());
 		dirGroup.writeEntry("Build Type", "");
+		dirGroup.writeEntry("Install Directory", ""); // Has to be empty, otherwise KDev gives /usr/local to cmake
 
 		m_cfg->sync();
 	}
