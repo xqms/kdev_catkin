@@ -372,6 +372,22 @@ QHash<QString, QString> CatkinManager::defines(KDevelop::ProjectBaseItem* item) 
 	return {};
 }
 
+QString CatkinManager::extraArguments(KDevelop::ProjectBaseItem* item) const
+{
+	auto fileItem = dynamic_cast<SubProjectFile*>(item);
+
+	if(fileItem)
+	{
+		auto buildManager = fileItem->subProjectItem()->project()->buildSystemManager();
+		if(!buildManager)
+			return QString();
+
+		return buildManager->extraArguments(fileItem->subProjectItem());
+	}
+
+	return QString();
+}
+
 void CatkinManager::addSubproject(CatkinSubProject* project)
 {
 	m_subProjects << project;
