@@ -162,8 +162,6 @@ public:
 			return;
 		}
 
-		qDebug() << "Project configuration:" << project->projectConfiguration()->groupList();
-
 		manager->addSubproject(project);
 
 		auto job = manager->cmakeManager()->createImportJob(project->projectItem());
@@ -404,7 +402,6 @@ KDevelop::ProjectFileItem* CatkinManager::createFileItem(KDevelop::IProject* pro
 
 	if(it != m_subProjects.end())
 	{
-// 		qDebug() << "Found match for file" << path << "in project" << (*it)->name();
 		auto items = (*it)->itemsForPath(indexedPath);
 
 		if(items.isEmpty())
@@ -419,8 +416,6 @@ KDevelop::ProjectFileItem* CatkinManager::createFileItem(KDevelop::IProject* pro
 			qWarning() << "Got invalid object type from itemsForPath";
 			return AbstractFileManagerPlugin::createFileItem(project, path, parent);
 		}
-
-		qDebug() << path << item->project() << project;
 
 		return new SubProjectFile(project, path, item, parent);
 	}
