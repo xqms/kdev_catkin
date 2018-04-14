@@ -39,7 +39,7 @@ public:
 	virtual KDevelop::Path::List includeDirectories(KDevelop::ProjectBaseItem *item) const override;
 	virtual KDevelop::Path::List frameworkDirectories(KDevelop::ProjectBaseItem *item) const override;
 	virtual QHash<QString, QString> defines(KDevelop::ProjectBaseItem *item) const override;
-	virtual QString extraArguments(KDevelop::ProjectBaseItem* item) const;
+	virtual QString extraArguments(KDevelop::ProjectBaseItem* item) const override;
 
 	virtual KDevelop::ProjectTargetItem* createTarget(const QString& target, KDevelop::ProjectFolderItem *parent) override;
 

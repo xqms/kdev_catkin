@@ -233,7 +233,7 @@ KJob* CatkinManager::createImportJob(KDevelop::ProjectFolderItem* item)
 	auto project = item->project();
 
 	auto job = new ListPackagesJob(project, this);
-	connect(job, &KJob::result, this, [this, job, project](){
+	connect(job, &KJob::result, this, [job](){
 		if (job->error() != 0) {
 			qWarning() << "Got error from ListPackagesJob";
 		}
