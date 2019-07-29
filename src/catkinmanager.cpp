@@ -435,4 +435,9 @@ KDevelop::ProjectFolderItem* CatkinManager::createFolderItem(KDevelop::IProject*
 	return AbstractFileManagerPlugin::createFolderItem(project, path, parent);
 }
 
+KDevelop::Path CatkinManager::compiler(KDevelop::ProjectTargetItem* p) const
+{
+	return {};
+}
+
 #include "catkinmanager.moc"
