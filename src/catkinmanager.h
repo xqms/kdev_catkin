@@ -69,6 +69,8 @@ public:
 	{ return m_cmakePlugin; }
 
 	virtual KDevelop::Path compiler(KDevelop::ProjectTargetItem* p) const override;
+
+	bool reload(KDevelop::ProjectFolderItem * item) override;
 protected:
 	virtual bool isValid(const KDevelop::Path& path, const bool isFolder, KDevelop::IProject* project) const override;
 

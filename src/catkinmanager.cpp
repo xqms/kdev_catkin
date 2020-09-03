@@ -51,12 +51,18 @@ private:
 class SubProjectRoot : public KDevelop::ProjectFolderItem
 {
 public:
-	SubProjectRoot(IProject* project, const Path& path, ProjectBaseItem* parent = nullptr)
+	SubProjectRoot(IProject* project, const Path& path, ProjectBaseItem* parent, CatkinSubProject* subProject)
 	 : ProjectFolderItem(project, path, parent)
+	 , m_subProject(subProject)
 	{}
 
 	QString iconName() const override
 	{ return "package-x-generic"; }
+
+	CatkinSubProject* subProject()
+	{ return m_subProject; }
+private:
+	CatkinSubProject* m_subProject;
 };
 
 }
@@ -125,7 +131,7 @@ public:
 
 		QString name = nameElem.text();
 
-		KDevelop::Path buildPath(project->path(), "build");
+		KDevelop::Path buildPath(project->path(), "../build");
 		KDevelop::Path projectBuildPath(buildPath, name);
 
 		if(!QFileInfo(projectBuildPath.toLocalFile()).isDir())
@@ -177,7 +183,7 @@ public:
 	{
 		KDevelop::Path projectPath = project->path();
 
-		KDevelop::Path srcPath(projectPath, "src");
+		KDevelop::Path srcPath(projectPath);
 
 		// Crawl for packages.
 		QStack<KDevelop::Path> fringe;
@@ -254,11 +260,6 @@ KJob* CatkinManager::createImportJob(KDevelop::ProjectFolderItem* item)
 
 bool CatkinManager::isValid(const Path& path, const bool isFolder, KDevelop::IProject* project) const
 {
-	Path srcPath(project->path(), "src");
-
-	if(srcPath != path && !srcPath.isParentOf(path))
-		return false;
-
 	if(path.lastPathSegment().endsWith(".kdev4"))
 		return false;
 
@@ -370,6 +371,24 @@ QHash<QString, QString> CatkinManager::defines(KDevelop::ProjectBaseItem* item) 
 	return {};
 }
 
+bool CatkinManager::reload(KDevelop::ProjectFolderItem* item)
+{
+	auto folderItem = dynamic_cast<SubProjectRoot*>(item);
+
+	if(folderItem)
+	{
+		qWarning() << "Reloading sub project";
+		auto fileManager = folderItem->subProject()->projectFileManager();
+		if(!fileManager)
+			return false;
+
+		return fileManager->reload(folderItem->subProject()->projectItem());
+	}
+
+	return KDevelop::AbstractFileManagerPlugin::reload(item);
+}
+
+
 QString CatkinManager::extraArguments(KDevelop::ProjectBaseItem* item) const
 {
 	auto fileItem = dynamic_cast<SubProjectFile*>(item);
@@ -430,7 +449,7 @@ KDevelop::ProjectFolderItem* CatkinManager::createFolderItem(KDevelop::IProject*
 	});
 
 	if(it != m_subProjects.end())
-		return new SubProjectRoot(project, path, parent);
+		return new SubProjectRoot(project, path, parent, *it);
 
 	return AbstractFileManagerPlugin::createFolderItem(project, path, parent);
 }
